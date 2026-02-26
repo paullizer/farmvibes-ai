@@ -15,6 +15,7 @@ resource "azurerm_application_insights" "appinsights" {
   location            = var.location
   resource_group_name = var.resource_group_name
   application_type    = "web"
+  workspace_id        = azurerm_log_analytics_workspace.analyticsworkspace[0].id
 }
 
 
@@ -26,17 +27,9 @@ resource "azurerm_monitor_diagnostic_setting" "diagsetting" {
 
   enabled_log {
     category = "AppTraces"
-
-    retention_policy {
-      enabled = false
-    }
   }
 
   metric {
     category = "AllMetrics"
-
-    retention_policy {
-      enabled = false
-    }
   }
 }

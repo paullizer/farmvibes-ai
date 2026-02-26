@@ -164,8 +164,8 @@ resource "kubernetes_ingress_v1" "restapi" {
       host = var.public_ip_fqdn
       http {
         path {
-          path      = "/"
-          path_type = "Prefix"
+          path      = "/(.*)"
+          path_type = "ImplementationSpecific"
           backend {
             service {
               name = kubernetes_service.restapi.metadata.0.name

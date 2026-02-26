@@ -76,11 +76,11 @@ resource "kubernetes_namespace" "kubernetesnginxnamespace" {
 
 resource "helm_release" "nginx-ingress" {
   name       = "ingress-nginx"
-  repository = "https://helm.nginx.com/stable"
-  chart      = "nginx-ingress"
+  repository = "https://kubernetes.github.io/ingress-nginx"
+  chart      = "ingress-nginx"
   namespace  = "ingress-basic"
   timeout    = 600
-  version    = "0.16.0"
+  version    = "4.14.3"
 
   set {
     name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-load-balancer-health-probe-request-path"

@@ -28,7 +28,7 @@ resource "azurerm_kubernetes_cluster" "kubernetes" {
     enable_auto_scaling = true
     min_count           = 2
     max_count           = local.default_node_pool_max_count
-    vm_size             = "Standard_B4ms"
+    vm_size             = "Standard_D4as_v6"
     os_sku              = "Mariner"
     vnet_subnet_id      = azurerm_subnet.aks-subnet.id
   }
@@ -55,7 +55,7 @@ data "azurerm_user_assigned_identity" "kubernetesidentity" {
 resource "azurerm_kubernetes_cluster_node_pool" "kubernetes-worker" {
   name                  = "worker"
   kubernetes_cluster_id = azurerm_kubernetes_cluster.kubernetes.id
-  vm_size               = "Standard_D8s_v3"
+  vm_size               = "Standard_D8as_v6"
   enable_auto_scaling   = true
   min_count             = 1
   max_count             = var.max_worker_nodes

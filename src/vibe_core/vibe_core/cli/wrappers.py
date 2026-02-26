@@ -1755,11 +1755,15 @@ class DaprWrapper:  # DaprWrapr 🫠
         return [v for v in all_versions]
 
     def needs_upgrade(self):
-        version_tuple = tuple(map(int, self._target_version().split(".")))
-        current_versions_tuples = [tuple(map(int, v.split("."))) for v in self.version()]
-        return len(current_versions_tuples) == 0 or any(
-            [v < version_tuple for v in current_versions_tuples if v > (1, 0, 0)]
-        )
+        try:
+            version_tuple = tuple(map(int, self._target_version().split(".")))
+            current_versions_tuples = [tuple(map(int, v.split("."))) for v in self.version()]
+            return len(current_versions_tuples) == 0 or any(
+                [v < version_tuple for v in current_versions_tuples if v > (1, 0, 0)]
+            )
+        except Exception:
+            # Dapr not installed yet, skip upgrade check
+            return False
 
     def url_exists(self, url: str) -> bool:
         try:

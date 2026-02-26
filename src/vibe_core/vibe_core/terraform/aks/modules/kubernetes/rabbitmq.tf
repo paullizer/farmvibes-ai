@@ -7,10 +7,16 @@ resource "helm_release" "rabbitmq" {
   repository = "oci://registry-1.docker.io/bitnamicharts"
   chart      = "rabbitmq"
   namespace  = var.namespace
+  timeout    = 600
 
   set {
-    name  = "image.tag"
-    value = "3.10.8-debian-11-r4"
+    name  = "image.repository"
+    value = "bitnamilegacy/rabbitmq"
+  }
+
+  set {
+    name  = "global.security.allowInsecureImages"
+    value = "true"
   }
 
   set {
