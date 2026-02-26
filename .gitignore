@@ -126,5 +126,6 @@ resources/test/
 test-output.xml
 /outputs/*
 venv/
+.venv/
 
 makeenv
