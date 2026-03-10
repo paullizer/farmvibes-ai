@@ -184,17 +184,6 @@ farmvibes-ai remote -h
 
 ---
 
-## Current Deployment Status
-
-| Stage | Status |
-|---|---|
-| Resource Group | ✅ Created (`farmvibes-rg`) |
-| Infrastructure (Terraform) | ✅ Deployed (AKS, CosmosDB, KeyVault, Storage, VNet, Public IP) |
-| AKS Cluster | ✅ Running — 3 nodes (2 default + 1 worker), Kubernetes v1.33.6 |
-| Kubernetes Components | 🔄 In Progress — Redis ✅, RabbitMQ/NGINX/Dapr/cert-manager/OTEL deploying |
-| FarmVibes Services | ⬜ Pending (REST API, Orchestrator, Worker, Cache, Data Ops) |
----
-
 ## Post-Deployment: Consider Updating
 
 Items to revisit once the cluster is fully operational. These are non-blocking but improve security, supportability, and long-term maintenance.
@@ -232,3 +221,23 @@ Items to revisit once the cluster is fully operational. These are non-blocking b
 | **RabbitMQ HA** | Single replica. Consider adding replicas or Azure Service Bus for production messaging. |
 | **TLS / cert-manager** | Verify Let's Encrypt certs are issuing correctly after deployment. |
 | **NGINX Ingress** | Validate ingress rules and load balancer health probes with the new community chart. |
+
+### NGINX Ingress Retirement (CRITICAL)
+
+The Kubernetes SIG Network [announced the retirement](https://www.kubernetes.dev/blog/2025/11/12/ingress-nginx-retirement/) of the `ingress-nginx` project in November 2025. **Community maintenance ended March 2026** — the chart we are currently using (community `ingress-nginx` 4.14.3) will receive no further updates.
+
+**Impact**: The self-managed `ingress-nginx` Helm release in this cluster is now unsupported upstream. No new features, bug fixes, or security patches will be released.
+
+**Microsoft's recommended migration paths** (in order of effort):
+
+1. **AKS Application Routing add-on** (lowest effort) — Enable the managed NGINX ingress add-on built into AKS (`az aks approuting enable`). Microsoft will provide critical security patches through **November 2026**. Ingress annotations are largely compatible; main changes are removing the self-managed Helm release and switching `ingressClassName` from `nginx` to `webapprouting.kubernetes.azure.com/nginx`. This buys time to plan the long-term Gateway API migration.
+
+2. **Application Gateway for Containers** (recommended long-term) — Azure-native L7 load balancer that supports both the Ingress API and the newer Gateway API. Best option for production workloads that need a fully supported, Azure-managed solution beyond November 2026.
+
+3. **Istio service mesh add-on** — If adopting a service mesh, the AKS Istio add-on provides ingress gateway capabilities with a path to Gateway API support.
+
+**Action required**: Migrate off the self-managed `ingress-nginx` Helm chart. The shortest path is option 1 (Application Routing add-on), which requires:
+- Enabling the add-on on the AKS cluster
+- Updating the `kubernetes_ingress_v1` resource in `restapi.tf` (annotations and `ingressClassName`)
+- Removing the `helm_release.nginx-ingress` resource from `init.tf`
+- Removing the `kubernetes_namespace.kubernetesnginxnamespace` resource

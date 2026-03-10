@@ -22,7 +22,7 @@ setup(
         "shapely>=1.7.1",
         "PyYAML~=6.0.1",
         "pebble~=4.6.3",
-        "grpcio~=1.53.0",
+        "grpcio~=1.62.0",
         "dapr==1.13.0",
         "dapr-ext-grpc~=1.12.0",
         "redis~=4.6.0",
