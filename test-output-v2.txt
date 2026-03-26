@@ -1,0 +1,12 @@
+ImportError while loading conftest '/home/eldong/farmvibes-ai/src/tests/conftest.py'.
+src/tests/conftest.py:7: in <module>
+    from vibe_dev.testing.fake_workflows_fixtures import fake_ops_dir, fake_workflows_dir  # noqa
+src/vibe_dev/vibe_dev/testing/fake_workflows_fixtures.py:9: in <module>
+    from vibe_core.data.core_types import BaseVibe
+src/vibe_core/vibe_core/data/__init__.py:6: in <module>
+    from .airbus import AirbusPrice, AirbusProduct, AirbusRaster
+src/vibe_core/vibe_core/data/airbus.py:9: in <module>
+    from .core_types import DataVibe
+src/vibe_core/vibe_core/data/core_types.py:31: in <module>
+    from pydantic.main import BaseModel, ModelMetaclass
+E   ImportError: cannot import name 'ModelMetaclass' from 'pydantic.main' (/home/eldong/farmvibes-ai/.venv/lib/python3.10/site-packages/pydantic/main.py)

@@ -11,6 +11,45 @@ Phase 0 — Safety Net (Do Once)
  
  ✅ Note Python version (v2 is stricter on typing)
 
+### Progress Log
+
+**Environment Setup (completed)**
+- Cloned repo to WSL (`~/farmvibes-ai`), checked out `updates` branch
+- Created venv: `python3 -m venv .venv`
+- Installed all src packages:
+  ```
+  pip install -e "src/vibe_core[test]" -e src/vibe_common -e src/vibe_lib \
+              -e src/vibe_server -e src/vibe_agent -e src/vibe_dev
+  ```
+- Additional deps needed: `matplotlib`, `torch` (cpu), `rio-cogeo`, `cachetools`
+- **Dependency conflict note:** `rio-cogeo>=5` and `morecantile>=5` require pydantic v2,
+  which conflicts with the current `pydantic~=1.10.0` pin. Installed older compatible versions:
+  ```
+  pip install "rio-cogeo<5" "morecantile<5" --no-deps
+  pip install cachetools
+  ```
+
+**Phase 0 Verification (completed)**
+- `pytest src/` → **638 passed**, 6 failed, 4 errors, 14 deselected
+- Failures are all infrastructure-dependent (Dapr/Redis cluster not running locally):
+  - 4 errors: `test_cluster_integration` — needs Redis
+  - 2 failures: `test_subprocess_client` — hits cachetools/rio-cogeo chain
+  - 1 failure: `test_all_ops_pass_sanity_check` — some ops YAML reference uninstalled modules
+  - 2 failures: `test_helloworld_integration` — needs local k3d cluster
+  - 1 failure: `test_stac_converter` — pydantic v1 `mro` attribute issue
+- 2 test files skipped (unresolvable pydantic v1/v2 dep conflict in rio-cogeo):
+  - `src/vibe_lib/tests/test_predict_chips.py`
+  - `src/vibe_lib/tests/test_raster_chipping.py`
+- Core module imports verified clean:
+  ```
+  python -c "from vibe_server.server import TerravibesAPI; print('OK')"
+  python -c "from vibe_server.orchestrator import Orchestrator; print('OK')"
+  python -c "from vibe_common.messaging import WorkMessageBuilder; print('OK')"
+  python -c "from vibe_core.data import DataVibe; print('OK')"
+  ```
+- **Python version:** 3.10.12
+
+---
 
 Phase 1 — Bulk Mechanical Migration (Do First, No Judgment)
 

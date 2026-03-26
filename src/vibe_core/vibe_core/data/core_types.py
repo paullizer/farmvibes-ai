@@ -28,7 +28,7 @@ from typing import (
 )
 
 from pydantic.dataclasses import dataclass as pydataclass
-from pydantic.main import BaseModel, ModelMetaclass
+from pydantic import BaseModel
 from shapely import geometry as shpg
 from shapely import wkt
 from shapely.geometry.base import BaseGeometry
@@ -304,7 +304,7 @@ class BaseVibe:
     """Represent a base class for FarmVibes.AI types."""
 
     schema: ClassVar[Callable[[], Dict[str, Any]]]
-    pydantic_model: ClassVar[Callable[[], ModelMetaclass]]
+    pydantic_model: ClassVar[Callable[[], Type[BaseModel]]]
 
     def __init__(self):
         """Instantiate a new BaseVibe."""
@@ -391,9 +391,9 @@ class BaseVibe:
 
                     Model = pydataclass(Tmp)
                     Model.__name__ = cls.__name__  # Model in the repr would confuse users
-                    return Model.__pydantic_model__  # type: ignore
+                    return Model  # type: ignore
 
-                return pydataclass(cls).__pydantic_model__
+                return pydataclass(cls)
             if issubclass(cls, BaseModel):
                 return cls
             raise NotImplementedError(f"{cls.__name__} is not a dataclass")  # type:ignore
