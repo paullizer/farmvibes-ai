@@ -49,7 +49,7 @@ def execute_cmd(
         is_running_az = binary.split(".")[0].lower() == "az"
         for line in iter(process.stdout.readline, b""):  # type: ignore
             if line:
-                decoded = line.decode(get_subprocess_encoding()).rstrip()
+                decoded = line.decode(get_subprocess_encoding(), errors="replace").rstrip()
                 if not is_running_az or (is_running_az and not decoded.startswith(WARNING_STRINGS)):
                     stdout_capture.append(decoded)
                 if not censor_output:

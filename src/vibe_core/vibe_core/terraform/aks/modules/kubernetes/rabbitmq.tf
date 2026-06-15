@@ -6,12 +6,18 @@ resource "helm_release" "rabbitmq" {
 
   repository = "oci://registry-1.docker.io/bitnamicharts"
   chart      = "rabbitmq"
+  version    = var.rabbitmq_chart_version
   namespace  = var.namespace
   timeout    = 600
 
   set {
     name  = "image.repository"
     value = "bitnamilegacy/rabbitmq"
+  }
+
+  set {
+    name  = "image.tag"
+    value = var.rabbitmq_image_tag
   }
 
   set {
@@ -50,7 +56,7 @@ resource "helm_release" "rabbitmq" {
   }
 
   set {
-    name  = "replica.replicaCount"
+    name  = "replicaCount"
     value = "1"
   }
 

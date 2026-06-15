@@ -2,7 +2,8 @@
 # Licensed under the MIT License.
 
 import logging
-from typing import Dict, Protocol, Set
+import os
+from typing import Dict, Optional, Protocol, Set
 
 from hydra_zen import builds
 from redis.asyncio import Redis
@@ -42,9 +43,16 @@ class RedisCacheMetadataStore(CacheMetadataStoreProtocol):
     Redis implementation of the cache metadata store.
     """
 
-    # TODO: pass redis service name, namespace, and port through Terraform...
+    _redis_host_env = "FARMVIBES_REDIS_HOST"
+    _redis_port_env = "FARMVIBES_REDIS_PORT"
+    _redis_db_env = "FARMVIBES_REDIS_DB"
+    _redis_username_env = "FARMVIBES_REDIS_USERNAME"
+    _redis_password_env = "FARMVIBES_REDIS_PASSWORD"
+    _redis_ssl_env = "FARMVIBES_REDIS_SSL"
+    _redis_metadata_ttl_env = "FARMVIBES_REDIS_METADATA_TTL_SECONDS"
     _redis_host = "redis-master.default.svc.cluster.local"
     _redis_port = 6379
+    _redis_db = 0
     _key_delimiter = ":"
     _run_ops_key_format = "run:{run_id}:ops"
     _op_runs_key_format = "op:{op_name}:{op_hash}:runs"
@@ -52,20 +60,58 @@ class RedisCacheMetadataStore(CacheMetadataStoreProtocol):
     _asset_ops_key_format = "asset:{asset_id}:ops"
     _op_ref_format = "{op_name}:{op_hash}"
 
-    def __init__(self):
+    def __init__(
+        self,
+        host: str = "",
+        port: Optional[int] = None,
+        db: Optional[int] = None,
+        username: str = "",
+        password: str = "",
+        ssl: bool = False,
+        metadata_ttl_seconds: Optional[int] = None,
+        password_secret_store: str = "kubernetes",
+        password_secret_name: str = "redis",
+        password_secret_key: str = "redis-password",
+    ):
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
-        self.redis_password = retrieve_dapr_secret("kubernetes", "redis", "redis-password")
+        self.redis_host = host or os.getenv(self._redis_host_env, self._redis_host)
+        self.redis_port = self._get_int_config(self._redis_port_env, port, self._redis_port)
+        self.redis_db = self._get_int_config(self._redis_db_env, db, self._redis_db)
+        self.redis_username = username or os.getenv(self._redis_username_env, "") or None
+        self.redis_ssl = self._get_bool_config(self._redis_ssl_env, ssl)
+        self.metadata_ttl_seconds = self._get_int_config(
+            self._redis_metadata_ttl_env, metadata_ttl_seconds, 0
+        )
+        self.redis_password = password or os.getenv(self._redis_password_env, "")
+        if not self.redis_password:
+            self.redis_password = retrieve_dapr_secret(
+                password_secret_store, password_secret_name, password_secret_key
+            )
+
+    def _get_int_config(self, env_var: str, value: Optional[int], default: int) -> int:
+        if value is not None:
+            return value
+        env_value = os.getenv(env_var)
+        return int(env_value) if env_value else default
+
+    def _get_bool_config(self, env_var: str, default: bool) -> bool:
+        env_value = os.getenv(env_var)
+        if env_value is None:
+            return default
+        return env_value.lower() in {"1", "true", "yes"}
 
     async def _get_redis_client(self):
         self.logger.debug(
-            f"Creating Redis client with host {self._redis_host} and port {self._redis_port}"
+            f"Creating Redis client with host {self.redis_host} and port {self.redis_port}"
         )
         retry = RedisRetry(ExponentialBackoff(cap=DEFAULT_CAP, base=DEFAULT_BASE), 3)
         redis_client = Redis(
-            host=self._redis_host,
-            port=self._redis_port,
-            db=0,
-            password=self.redis_password,
+            host=self.redis_host,
+            port=self.redis_port,
+            db=self.redis_db,
+            username=self.redis_username,
+            password=self.redis_password or None,
+            ssl=self.redis_ssl,
             decode_responses=True,
             retry=retry,
             retry_on_error=[ConnectionError, TimeoutError, BusyLoadingError],
@@ -89,23 +135,31 @@ class RedisCacheMetadataStore(CacheMetadataStoreProtocol):
             pipe = redis_client.pipeline(transaction=True)
 
             run_ops_key = self._run_ops_key_format.format(run_id=run_id)
+            touched_keys = {run_ops_key}
             op_ref = self._op_run_id_to_op_ref_str(op_run_id)
             pipe.sadd(run_ops_key, op_ref)
 
             op_runs_key = self._op_runs_key_format.format(
                 op_name=op_run_id.name, op_hash=op_run_id.hash
             )
+            touched_keys.add(op_runs_key)
             pipe.sadd(op_runs_key, run_id)
 
             if assets:
                 op_assets_key = self._op_assets_key_format.format(
                     op_name=op_run_id.name, op_hash=op_run_id.hash
                 )
+                touched_keys.add(op_assets_key)
                 pipe.sadd(op_assets_key, *assets)
 
                 for asset_id in assets:
                     asset_ops_key = self._asset_ops_key_format.format(asset_id=asset_id)
+                    touched_keys.add(asset_ops_key)
                     pipe.sadd(asset_ops_key, op_ref)
+
+            if self.metadata_ttl_seconds > 0:
+                for key in touched_keys:
+                    pipe.expire(key, self.metadata_ttl_seconds)
 
             await pipe.execute()
             self.logger.debug(

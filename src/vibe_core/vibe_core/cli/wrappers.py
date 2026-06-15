@@ -17,7 +17,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from .constants import RABBITMQ_IMAGE_TAG, REDIS_IMAGE_TAG
+from .constants import (
+    CERT_MANAGER_CHART_VERSION,
+    DAPR_RUNTIME_VERSION,
+    RABBITMQ_CHART_VERSION,
+    RABBITMQ_IMAGE_TAG,
+    REDIS_IMAGE_TAG,
+)
 from .helper import execute_cmd, is_port_free, log_should_be_logged_in, verify_to_proceed
 from .logging import ColorFormatter, log
 from .osartifacts import OSArtifacts
@@ -36,6 +42,10 @@ AZURE_RESOURCES_REQUIRED = [
     "Microsoft.Network",
     "Microsoft.Storage",
     "Microsoft.Compute",
+    "Microsoft.OperationalInsights",
+    "Microsoft.OperationsManagement",
+    "Microsoft.Insights",
+    "Microsoft.ManagedIdentity",
 ]
 
 CPUS_REQUIRED = {
@@ -278,6 +288,10 @@ class TerraformWrapper:
         container_name: str,
         storage_access_key: str,
         enable_telemetry: bool,
+        node_os_sku: str = "Ubuntu",
+        ingress_controller_type: str = "self_managed_nginx",
+        application_routing_dns_zone_ids: str = "[]",
+        monitor_action_group_ids: str = "[]",
         cleanup_state: bool = False,
         is_update: bool = False,
     ):
@@ -305,6 +319,10 @@ class TerraformWrapper:
             "max_worker_nodes": worker_nodes,
             "enable_telemetry": f"{'true' if enable_telemetry else 'false'}",
             "resource_group_name": resource_group,
+            "node_os_sku": node_os_sku,
+            "ingress_controller_type": ingress_controller_type,
+            "application_routing_dns_zone_ids": application_routing_dns_zone_ids,
+            "monitor_action_group_ids": monitor_action_group_ids,
         }
 
         state_file = self.os_artifacts.get_terraform_file(
@@ -356,16 +374,25 @@ class TerraformWrapper:
         public_ip_address: str,
         public_ip_fqdn: str,
         public_ip_dns: str,
+        public_ip_name: str,
+        public_ip_resource_group: str,
         keyvault_name: str,
         application_id: str,
         storage_connection_key: str,
         storage_account_name: str,
         userfile_container_name: str,
         monitor_instrumentation_key: str,
+        monitor_ingestion_endpoint: str,
         backend_storage_name: str,
         backend_container_name: str,
         backend_storage_access_key: str,
         enable_telemetry: bool,
+        ingress_controller_type: str = "self_managed_nginx",
+        ingress_class_name: str = "",
+        rabbitmq_chart_version: str = RABBITMQ_CHART_VERSION,
+        rabbitmq_image_tag: str = RABBITMQ_IMAGE_TAG,
+        dapr_runtime_version: str = DAPR_RUNTIME_VERSION,
+        cert_manager_chart_version: str = CERT_MANAGER_CHART_VERSION,
         cleanup_state: bool = False,
     ):
         # Do kubernetes infra now
@@ -395,16 +422,25 @@ class TerraformWrapper:
             "public_ip_address": public_ip_address,
             "public_ip_fqdn": public_ip_fqdn,
             "public_ip_dns": public_ip_dns,
+            "public_ip_name": public_ip_name,
+            "public_ip_resource_group": public_ip_resource_group,
             "keyvault_name": keyvault_name,
             "application_id": application_id,
             "storage_connection_key": storage_connection_key,
             "storage_account_name": storage_account_name,
             "userfile_container_name": userfile_container_name,
             "monitor_instrumentation_key": monitor_instrumentation_key,
+            "monitor_ingestion_endpoint": monitor_ingestion_endpoint,
             "resource_group_name": resource_group,
             "current_user_name": current_user_name,
             "certificate_email": certificate_email,
             "enable_telemetry": str(enable_telemetry).lower(),
+            "rabbitmq_chart_version": rabbitmq_chart_version,
+            "rabbitmq_image_tag": rabbitmq_image_tag,
+            "dapr_runtime_version": dapr_runtime_version,
+            "cert_manager_chart_version": cert_manager_chart_version,
+            "ingress_controller_type": ingress_controller_type,
+            "ingress_class_name": ingress_class_name,
         }
 
         state_file = self.os_artifacts.get_terraform_file(
@@ -429,6 +465,8 @@ class TerraformWrapper:
         otel_service_name: str,
         worker_replicas: int,
         log_level: str,
+        ingress_controller_type: str = "self_managed_nginx",
+        ingress_class_name: str = "",
         cleanup_state: bool = False,
     ):
         services_directory = os.path.join(self.os_artifacts.aks_directory, "..", "services")
@@ -458,6 +496,8 @@ class TerraformWrapper:
             "otel_service_name": otel_service_name,
             "worker_replicas": worker_replicas,
             "farmvibes_log_level": log_level,
+            "ingress_controller_type": ingress_controller_type,
+            "ingress_class_name": ingress_class_name,
         }
 
         state_file = self.os_artifacts.get_terraform_file(
@@ -481,7 +521,9 @@ class TerraformWrapper:
         config_context: str,
         enable_telemetry: bool,
         redis_image_tag: str = REDIS_IMAGE_TAG,
+        rabbitmq_chart_version: str = RABBITMQ_CHART_VERSION,
         rabbitmq_image_tag: str = RABBITMQ_IMAGE_TAG,
+        dapr_runtime_version: str = DAPR_RUNTIME_VERSION,
         is_update: bool = False,
     ):
         if not is_update:
@@ -498,7 +540,9 @@ class TerraformWrapper:
             "worker_replicas": f"{worker_replicas}",
             "image_prefix": image_prefix,
             "redis_image_tag": redis_image_tag,
+            "rabbitmq_chart_version": rabbitmq_chart_version,
             "rabbitmq_image_tag": rabbitmq_image_tag,
+            "dapr_runtime_version": dapr_runtime_version,
             "enable_telemetry": f"{'true' if enable_telemetry else 'false'}",
             "farmvibes_log_level": log_level,
             "max_log_file_bytes": f"{max_log_file_bytes}" if max_log_file_bytes else "",
@@ -1468,6 +1512,16 @@ class KubectlWrapper:
         if name:
             cmd += [name]
         else:
+            get_cmd = [self.os_artifacts.kubectl, "get", kind, "-l", ",".join(selectors), "-o", "name"]
+            existing = execute_cmd(
+                get_cmd,
+                error_string=f"Unable to list {kind} with selectors {selectors}",
+                check_empty_result=False,
+                subprocess_log_level="debug",
+            )
+            if not existing.strip():
+                log(f"No {kind} found with selectors {selectors}. Skipping restart.", level="debug")
+                return False
             cmd += ["-l", ",".join(selectors)]
         execute_cmd(
             cmd,
@@ -1733,15 +1787,28 @@ class DaprWrapper:  # DaprWrapr 🫠
         return -reversed_header.index(self.VERSION_STRING) - 1 - 1
 
     def _target_version(self) -> str:
-        # use pkg_resources to find dapr.tf:
         dapr_tf = pkgutil.get_data(
             "vibe_core.terraform", f"{self.cluster_kind}/modules/kubernetes/dapr.tf"
         )
         if not dapr_tf:
             raise ValueError("Unable to find dapr.tf")
-        target = re.findall('version\\s+=\\s+"(.*)"', dapr_tf.decode("utf-8"))[0]
-        assert len(target) > 0, "Unable to find Dapr version in dapr.tf"
-        return target
+        dapr_tf_text = dapr_tf.decode("utf-8")
+        literal_version = re.search('version\\s+=\\s+"([^\"]+)"', dapr_tf_text)
+        if literal_version:
+            return literal_version.group(1)
+
+        variables_tf = pkgutil.get_data(
+            "vibe_core.terraform", f"{self.cluster_kind}/modules/kubernetes/variables.tf"
+        )
+        if not variables_tf:
+            raise ValueError("Unable to find Kubernetes module variables.tf")
+        target = re.search(
+            'variable\\s+"dapr_runtime_version"\\s+\\{.*?default\\s+=\\s+"([^\"]+)"',
+            variables_tf.decode("utf-8"),
+            re.DOTALL,
+        )
+        assert target and target.group(1), "Unable to find Dapr version in variables.tf"
+        return target.group(1)
 
     def version(self):
         cmd = [self.os_artifacts.dapr, "status", "-k"]

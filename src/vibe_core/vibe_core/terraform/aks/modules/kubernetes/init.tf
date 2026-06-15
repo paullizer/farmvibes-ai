@@ -32,15 +32,16 @@ resource "kubernetes_secret" "user-storage-secret" {
 
 resource "kubernetes_secret" "monitor_instrumentation_key_secret" {
   metadata {
-    name = "monitor-instrumentation-key-secret"
+    name      = "monitor-instrumentation-key-secret"
     namespace = var.namespace
   }
 
   data = {
     monitor_instrumentation_key = var.monitor_instrumentation_key
+    monitor_ingestion_endpoint  = var.monitor_ingestion_endpoint
   }
 
-  type = "Opaque"
+  type       = "Opaque"
   depends_on = [data.kubernetes_namespace.kubernetesnamespace]
 }
 
@@ -69,12 +70,16 @@ resource "kubernetes_secret" "eywaregistrysecret" {
 }
 
 resource "kubernetes_namespace" "kubernetesnginxnamespace" {
+  count = var.ingress_controller_type == "self_managed_nginx" ? 1 : 0
+
   metadata {
     name = "ingress-basic"
   }
 }
 
 resource "helm_release" "nginx-ingress" {
+  count = var.ingress_controller_type == "self_managed_nginx" ? 1 : 0
+
   name       = "ingress-nginx"
   repository = "https://kubernetes.github.io/ingress-nginx"
   chart      = "ingress-nginx"

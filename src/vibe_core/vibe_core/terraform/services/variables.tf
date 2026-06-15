@@ -94,5 +94,45 @@ variable "farmvibes_log_level" {
 
 variable "environment" {
   description = "Unused"
-  default = ""
+  default     = ""
+}
+
+variable "ingress_controller_type" {
+  description = "Ingress controller mode. Use self_managed_nginx for the Helm ingress-nginx release or application_routing for AKS Application Routing managed NGINX."
+  default     = "self_managed_nginx"
+}
+
+variable "ingress_class_name" {
+  description = "Kubernetes IngressClass name for non-local deployments. The root module supplies the selected default unless explicitly overridden."
+  default     = ""
+}
+
+variable "redis_host" {
+  description = "Redis host used by the cache metadata store. Defaults to the in-cluster Redis service in the deployment namespace."
+  default     = ""
+}
+
+variable "redis_port" {
+  description = "Redis port used by the cache metadata store."
+  default     = "6379"
+}
+
+variable "redis_db" {
+  description = "Redis database index used by the cache metadata store."
+  default     = "0"
+}
+
+variable "redis_username" {
+  description = "Redis username used by the cache metadata store. Leave empty for the in-cluster Redis chart."
+  default     = ""
+}
+
+variable "redis_ssl" {
+  description = "Whether the cache metadata store should connect to Redis with TLS."
+  default     = "false"
+}
+
+variable "redis_metadata_ttl_seconds" {
+  description = "TTL for new Redis cache metadata keys. Set 0 to disable expiration."
+  default     = "2592000"
 }

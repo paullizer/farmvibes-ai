@@ -30,7 +30,7 @@ resource "kubernetes_config_map" "otel" {
         debug:
           verbosity: detailed
         azuremonitor:
-          endpoint: "https://eastus-8.in.applicationinsights.azure.com/v2/track"
+          endpoint: $MONITOR_INGESTION_ENDPOINT
           instrumentation_key: $MONITOR_INSTRUMENTATION_KEY
           # maxbatchsize is the maximum number of items that can be
           # queued before calling to the configured endpoint
@@ -59,7 +59,7 @@ resource "kubernetes_deployment" "otel-collector" {
   metadata {
     name = "otel-collector"
     labels = {
-      app       = "otel-collector"
+      app = "otel-collector"
     }
   }
 
@@ -75,7 +75,7 @@ resource "kubernetes_deployment" "otel-collector" {
     template {
       metadata {
         labels = {
-          app       = "otel-collector"
+          app = "otel-collector"
         }
       }
 
@@ -118,7 +118,7 @@ resource "kubernetes_deployment" "otel-collector" {
             }
           }
           volume_mount {
-            name      = "otel-collector-config-vol"
+            name       = "otel-collector-config-vol"
             mount_path = "/conf"
           }
 
@@ -128,6 +128,16 @@ resource "kubernetes_deployment" "otel-collector" {
               secret_key_ref {
                 name = kubernetes_secret.monitor_instrumentation_key_secret.metadata[0].name
                 key  = "monitor_instrumentation_key"
+              }
+            }
+          }
+
+          env {
+            name = "MONITOR_INGESTION_ENDPOINT"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.monitor_instrumentation_key_secret.metadata[0].name
+                key  = "monitor_ingestion_endpoint"
               }
             }
           }
@@ -163,17 +173,17 @@ resource "kubernetes_service" "otel_collector" {
     }
 
     port {
-      name       = "otlp"
-      port       = 4317
+      name        = "otlp"
+      port        = 4317
       target_port = 4317
-      protocol   = "TCP"
+      protocol    = "TCP"
     }
 
     port {
-      name       = "metrics"
-      port       = 55681
+      name        = "metrics"
+      port        = 55681
       target_port = 55681
-      protocol   = "TCP"
+      protocol    = "TCP"
     }
   }
 

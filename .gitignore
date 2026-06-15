@@ -129,3 +129,20 @@ venv/
 .venv/
 
 makeenv
+
+# Local/private deployment artifacts
+private/
+terraform-provider*.exe
+
+# Terraform local working files and state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc

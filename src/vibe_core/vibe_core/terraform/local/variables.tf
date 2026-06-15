@@ -47,7 +47,14 @@ variable "image_prefix" {
 variable "redis_image_tag" {
 }
 
+variable "rabbitmq_chart_version" {
+}
+
 variable "rabbitmq_image_tag" {
+}
+
+variable "dapr_runtime_version" {
+  default = "1.15.10"
 }
 
 variable "enable_telemetry" {
@@ -61,14 +68,14 @@ variable "farmvibes_log_level" {
 }
 
 variable "max_log_file_bytes" {
- description = "Maximum size of a worker log file in bytes"
+  description = "Maximum size of a worker log file in bytes"
 }
 
 variable "log_backup_count" {
- description = "Number of log files to keep for each service instance"
+  description = "Number of log files to keep for each service instance"
 }
 
 variable "environment" {
   description = "Unused"
-  default = ""
+  default     = ""
 }

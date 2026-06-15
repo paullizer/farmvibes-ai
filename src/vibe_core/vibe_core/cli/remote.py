@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 import argparse
+import json
 import os
 from typing import Optional
 
@@ -92,6 +93,12 @@ def check_cluster_name_length(cluster_name: str) -> bool:
     return True
 
 
+def _terraform_string_list(value: str) -> str:
+    if not value:
+        return "[]"
+    return json.dumps([item.strip() for item in value.split(",") if item.strip()])
+
+
 def setup_or_upgrade(
     os_artifacts: OSArtifacts,
     az: AzureCliWrapper,
@@ -109,6 +116,11 @@ def setup_or_upgrade(
     worker_replicas: int = 0,
     environment: str = "",
     current_user_name: str = "",
+    node_os_sku: str = "Ubuntu",
+    ingress_controller_type: str = "self_managed_nginx",
+    ingress_class_name: str = "",
+    application_routing_dns_zone_ids: str = "[]",
+    monitor_action_group_ids: str = "[]",
 ) -> bool:
     assert environment, "Cloud environment name must be provided"
     if not worker_replicas:
@@ -157,12 +169,13 @@ def setup_or_upgrade(
             "Seems like you might have a cluster already created.",
             level="warning",
         )
-        confirmation = verify_to_proceed("Do you want to delete your current cluster?")
-        if confirmation:
-            destroy(os_artifacts, az)
-        else:
-            log("Canceling installation...")
-            raise Exception("Previous cluster exists. Cancelled.")
+        log(
+            "Refusing to delete resources from an existing resource group during setup. "
+            "Run `farmvibes-ai remote update` to continue an existing deployment or "
+            "destroy the deployment explicitly before running setup again.",
+            level="error",
+        )
+        raise Exception("Previous cluster exists. Cancelled.")
 
     log(
         f"Will {'update' if is_update else 'create'} cluster {az.cluster_name} "
@@ -171,13 +184,16 @@ def setup_or_upgrade(
     created_rg = False
     try:
         if not is_update:
-            created_rg = terraform.ensure_resource_group(
-                tenant_id,
-                subscription_id,
-                region,
-                az.cluster_name,
-                az.resource_group,
-            )
+            if az.resource_group_exists():
+                log(f"Resource group {az.resource_group} already exists. Continuing...")
+            else:
+                created_rg = terraform.ensure_resource_group(
+                    tenant_id,
+                    subscription_id,
+                    region,
+                    az.cluster_name,
+                    az.resource_group,
+                )
         else:
             az.refresh_aks_credentials()
 
@@ -218,6 +234,10 @@ def setup_or_upgrade(
                 container_name,
                 storage_access_key,
                 enable_telemetry,  # Required to create azure monitor and application insights
+                node_os_sku,
+                ingress_controller_type,
+                application_routing_dns_zone_ids,
+                monitor_action_group_ids,
                 cleanup_state=True,
                 is_update=is_update,
             )
@@ -227,7 +247,7 @@ def setup_or_upgrade(
             if not kubectl:
                 log("Couldn't initialize kubectl, not updating", level="error")
                 return False
-            dapr = DaprWrapper(kubectl.os_artifacts, kubectl)
+            dapr = DaprWrapper(kubectl.os_artifacts, kubectl, cluster_kind="aks")
             if is_update and dapr.needs_upgrade():
                 log("Upgrading Dapr CRDs")
                 if not dapr.upgrade_crds():
@@ -248,16 +268,21 @@ def setup_or_upgrade(
                 infra_results["public_ip_address"]["value"],
                 infra_results["public_ip_fqdn"]["value"],
                 infra_results["public_ip_dns"]["value"],
+                infra_results["public_ip_name"]["value"],
+                infra_results["public_ip_resource_group"]["value"],
                 infra_results["keyvault_name"]["value"],
                 infra_results["application_id"]["value"],
                 infra_results["storage_connection_key"]["value"],
                 infra_results["storage_account_name"]["value"],
                 infra_results["userfile_container_name"]["value"],
                 infra_results["monitor_instrumentation_key"]["value"],
+                infra_results["monitor_ingestion_endpoint"]["value"],
                 storage_name,
                 container_name,
                 storage_access_key,
                 enable_telemetry,
+                ingress_controller_type,
+                ingress_class_name,
                 cleanup_state=True,
             )
             terraform.ensure_services(
@@ -274,6 +299,8 @@ def setup_or_upgrade(
                 k8s_results["otel_service_name"]["value"] if enable_telemetry else "",
                 worker_replicas,
                 log_level,
+                ingress_controller_type,
+                ingress_class_name,
                 cleanup_state=True,
             )
 
@@ -340,6 +367,14 @@ def destroy(
 
     log("Verifying if group still exists...")
     if az.resource_group_exists():
+        if not destroy_rg and not confirm:
+            log(
+                "Refusing to delete resources from an existing resource group during "
+                "automatic setup cleanup. Use `farmvibes-ai remote destroy` if you "
+                "want to delete the resource group contents explicitly.",
+                level="error",
+            )
+            return False
         if confirm:
             confirmation = verify_to_proceed(
                 DESTROY_WARNING.format(resource_group=az.resource_group)
@@ -440,6 +475,13 @@ def dispatch(args: argparse.Namespace):
             worker_replicas=args.worker_replicas,
             environment=args.environment,
             current_user_name=args.cluster_admin_name,
+            node_os_sku=args.node_os_sku,
+            ingress_controller_type=args.ingress_controller_type,
+            ingress_class_name=args.ingress_class_name,
+            application_routing_dns_zone_ids=_terraform_string_list(
+                args.application_routing_dns_zone_ids
+            ),
+            monitor_action_group_ids=_terraform_string_list(args.monitor_action_group_ids),
         )
     elif args.action in {"destroy", "rm", "del", "remove"}:
         ret = destroy(os_artifacts, az, args.resource_group, confirm=True)

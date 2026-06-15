@@ -12,18 +12,17 @@ resource "helm_release" "dapr" {
   repository = "https://dapr.github.io/helm-charts/"
   chart      = "dapr"
   namespace  = "dapr-system"
-  version    = "1.13.3"
+  version    = var.dapr_runtime_version
 
-  set = [
-    {
-      name  = "dapr_operator.watchInterval"
-      value = "30s"
-    },
-    {
-      name  = "enable-ha"
-      value = "true"
-    }
-  ]
+  set {
+    name  = "dapr_operator.watchInterval"
+    value = "30s"
+  }
+
+  set {
+    name  = "global.ha.enabled"
+    value = "true"
+  }
 
   depends_on = [kubernetes_namespace.kubernetesdaprnamespace]
 }

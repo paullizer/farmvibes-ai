@@ -2,7 +2,12 @@
 # Licensed under the MIT License.
 
 terraform {
-  required_version = ">=0.12"
+  required_version = ">=1.1"
+}
+
+locals {
+  application_routing_ingress_class_name = "farmvibes-webapprouting"
+  ingress_class_name                     = var.ingress_class_name != "" ? var.ingress_class_name : var.ingress_controller_type == "application_routing" ? local.application_routing_ingress_class_name : "nginx"
 }
 
 module "rg" {
@@ -10,16 +15,24 @@ module "rg" {
 }
 
 module "infrastructure" {
-  source              = "./modules/infra"
-  location            = var.location
-  prefix              = var.prefix
-  tenantId            = var.tenantId
-  subscriptionId      = var.subscriptionId
-  resource_group_name = var.resource_group_name
-  max_worker_nodes    = var.worker_replicas
-  enable_telemetry    = var.enable_telemetry
-  farmvibes_log_level = var.farmvibes_log_level
-  depends_on          = [module.rg]
+  source                                 = "./modules/infra"
+  location                               = var.location
+  prefix                                 = var.prefix
+  tenantId                               = var.tenantId
+  subscriptionId                         = var.subscriptionId
+  resource_group_name                    = var.resource_group_name
+  max_worker_nodes                       = var.worker_replicas
+  enable_telemetry                       = var.enable_telemetry
+  farmvibes_log_level                    = var.farmvibes_log_level
+  aks_diagnostic_log_category_exclusions = var.aks_diagnostic_log_category_exclusions
+  enable_monitor_alerts                  = var.enable_monitor_alerts
+  monitor_action_group_ids               = var.monitor_action_group_ids
+  monitor_alert_evaluation_frequency     = var.monitor_alert_evaluation_frequency
+  monitor_alert_window_duration          = var.monitor_alert_window_duration
+  node_os_sku                            = var.node_os_sku
+  ingress_controller_type                = var.ingress_controller_type
+  application_routing_dns_zone_ids       = var.application_routing_dns_zone_ids
+  depends_on                             = [module.rg]
 }
 
 module "kubernetes" {
@@ -34,6 +47,8 @@ module "kubernetes" {
   public_ip_address           = module.infrastructure.public_ip_address
   public_ip_fqdn              = module.infrastructure.public_ip_fqdn
   public_ip_dns               = module.infrastructure.public_ip_dns
+  public_ip_name              = module.infrastructure.public_ip_name
+  public_ip_resource_group    = module.infrastructure.public_ip_resource_group
   keyvault_name               = module.infrastructure.keyvault_name
   application_id              = module.infrastructure.application_id
   storage_connection_key      = module.infrastructure.storage_connection_key
@@ -41,10 +56,17 @@ module "kubernetes" {
   userfile_container_name     = module.infrastructure.userfile_container_name
   resource_group_name         = module.infrastructure.resource_group_name
   size_of_shared_volume       = var.size_of_shared_volume
-  monitor_instrumentation_key = var.monitor_instrumentation_key
+  monitor_instrumentation_key = coalesce(var.monitor_instrumentation_key, module.infrastructure.monitor_instrumentation_key)
+  monitor_ingestion_endpoint  = coalesce(var.monitor_ingestion_endpoint, module.infrastructure.monitor_ingestion_endpoint)
   enable_telemetry            = var.enable_telemetry
   certificate_email           = var.certificate_email
   current_user_name           = module.infrastructure.current_user_name
+  rabbitmq_chart_version      = var.rabbitmq_chart_version
+  rabbitmq_image_tag          = var.rabbitmq_image_tag
+  dapr_runtime_version        = var.dapr_runtime_version
+  cert_manager_chart_version  = var.cert_manager_chart_version
+  ingress_controller_type     = var.ingress_controller_type
+  ingress_class_name          = local.ingress_class_name
 }
 
 module "services" {
@@ -64,4 +86,6 @@ module "services" {
   image_tag                     = var.image_tag
   worker_replicas               = var.worker_replicas
   farmvibes_log_level           = var.farmvibes_log_level
+  ingress_controller_type       = var.ingress_controller_type
+  ingress_class_name            = local.ingress_class_name
 }

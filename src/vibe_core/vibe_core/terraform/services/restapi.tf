@@ -19,12 +19,13 @@ locals {
       "--loglevel=${var.farmvibes_log_level}",
     ],
     var.max_log_file_bytes != "" ? [
-        "--max-log-file-bytes=${var.max_log_file_bytes}",
+      "--max-log-file-bytes=${var.max_log_file_bytes}",
     ] : [],
     var.log_backup_count != "" ? [
-        "--log-backup-count=${var.log_backup_count}",
+      "--log-backup-count=${var.log_backup_count}",
     ] : [],
   )
+  restapi_ingress_class_name = var.local_deployment ? "traefik" : var.ingress_class_name != "" ? var.ingress_class_name : var.ingress_controller_type == "application_routing" ? "farmvibes-webapprouting" : "nginx"
 }
 
 resource "kubernetes_deployment" "restapi" {
@@ -32,7 +33,7 @@ resource "kubernetes_deployment" "restapi" {
     name      = "terravibes-rest-api"
     namespace = var.namespace
     labels = {
-      app = "terravibes-rest-api"
+      app     = "terravibes-rest-api"
       backend = "terravibes"
     }
   }
@@ -154,12 +155,12 @@ resource "kubernetes_ingress_v1" "restapi" {
     namespace = var.namespace
     annotations = {
       "nginx.ingress.kubernetes.io/use-regex"      = "true"
-      "nginx.ingress.kubernetes.io/ssl-redirect"   = var.local_deployment ? "false" : "true"
+      "nginx.ingress.kubernetes.io/ssl-redirect"   = "false"
       "nginx.ingress.kubernetes.io/rewrite-target" = "/$1"
     }
   }
   spec {
-    ingress_class_name = var.local_deployment ? "traefik" : "nginx"
+    ingress_class_name = local.restapi_ingress_class_name
     rule {
       host = var.public_ip_fqdn
       http {
@@ -188,7 +189,6 @@ resource "kubernetes_ingress_v1" "restapi" {
 
   lifecycle {
     ignore_changes = [
-      metadata[0].annotations["acme.cert-manager.io/http01-edit-in-place"],
       metadata[0].annotations["cert-manager.io/cluster-issuer"],
     ]
   }
@@ -207,13 +207,11 @@ resource "kubernetes_annotations" "rest_api_annotations" {
   }
 
   annotations = {
-    "cert-manager.io/cluster-issuer"            = "letsencrypt"
-    "acme.cert-manager.io/http01-edit-in-place" = "true"
+    "cert-manager.io/cluster-issuer" = "letsencrypt"
   }
 
   lifecycle {
     ignore_changes = [
-      annotations["acme.cert-manager.io/http01-edit-in-place"],
       annotations["cert-manager.io/cluster-issuer"],
     ]
   }

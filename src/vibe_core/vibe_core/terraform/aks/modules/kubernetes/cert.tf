@@ -6,10 +6,15 @@ resource "helm_release" "letsencrypt" {
   repository = "https://charts.jetstack.io"
   chart      = "cert-manager"
   namespace  = "kube-system"
-  version    = "1.12.2"
+  version    = var.cert_manager_chart_version
 
   set {
-    name  = "installCRDs"
+    name  = "crds.enabled"
+    value = "true"
+  }
+
+  set {
+    name  = "crds.keep"
     value = "true"
   }
 
@@ -18,7 +23,15 @@ resource "helm_release" "letsencrypt" {
     value = "linux"
   }
 
-  depends_on = [helm_release.nginx-ingress]
+  set {
+    name  = "startupapicheck.enabled"
+    value = "false"
+  }
+
+}
+
+locals {
+  ingress_class_name = var.ingress_class_name != "" ? var.ingress_class_name : var.ingress_controller_type == "application_routing" ? "farmvibes-webapprouting" : "nginx"
 }
 
 resource "kubectl_manifest" "clusterissuer" {
@@ -37,7 +50,7 @@ resource "kubectl_manifest" "clusterissuer" {
         solvers:
         - http01:
             ingress:
-              class: nginx
+              ingressClassName: ${local.ingress_class_name}
               podTemplate:
                 spec:
                   nodeSelector:

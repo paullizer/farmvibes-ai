@@ -6,50 +6,68 @@ resource "helm_release" "rabbitmq" {
 
   repository = "oci://registry-1.docker.io/bitnamicharts"
   chart      = "rabbitmq"
+  version    = var.rabbitmq_chart_version
   namespace  = var.namespace
 
-  set = [
-    {
-      name  = "image.tag"
-      value = var.rabbitmq_image_tag
-    },
-    {
-      name  = "containerPorts.amqp"
-      value = "5672"
-    },
-    {
-      name  = "containerPorts.amqpTls"
-      value = "5671"
-    },
-    {
-      name  = "containerPorts.dist"
-      value = "25672"
-    },
-    {
-      name  = "containerPorts.manager"
-      value = "15672"
-    },
-    {
-      name  = "containerPorts.epmd"
-      value = "4369"
-    },
-    {
-      name  = "containerPorts.metrics"
-      value = "9419"
-    },
-    {
-      name  = "replica.replicaCount"
-      value = "1"
-    },
-    {
-      name  = "extraEnvVars[0].name"
-      value = "RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS"
-    },
-    {
-      name  = "extraEnvVars[0].value"
-      value = "-rabbit consumer_timeout 10800000"
-    }
-  ]
+  set {
+    name  = "image.repository"
+    value = "bitnamilegacy/rabbitmq"
+  }
+
+  set {
+    name  = "image.tag"
+    value = var.rabbitmq_image_tag
+  }
+
+  set {
+    name  = "global.security.allowInsecureImages"
+    value = "true"
+  }
+
+  set {
+    name  = "containerPorts.amqp"
+    value = "5672"
+  }
+
+  set {
+    name  = "containerPorts.amqpTls"
+    value = "5671"
+  }
+
+  set {
+    name  = "containerPorts.dist"
+    value = "25672"
+  }
+
+  set {
+    name  = "containerPorts.manager"
+    value = "15672"
+  }
+
+  set {
+    name  = "containerPorts.epmd"
+    value = "4369"
+  }
+
+  set {
+    name  = "containerPorts.metrics"
+    value = "9419"
+  }
+
+  set {
+    name  = "replicaCount"
+    value = "1"
+  }
+
+  set {
+    name  = "extraEnvVars[0].name"
+    value = "RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS"
+  }
+
+  set {
+    name  = "extraEnvVars[0].value"
+    value = "-rabbit consumer_timeout 10800000"
+  }
 }
 
 data "kubernetes_service" "rabbitmq" {

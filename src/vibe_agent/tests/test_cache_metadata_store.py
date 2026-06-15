@@ -71,6 +71,7 @@ def run_config() -> Dict[str, Any]:
 class AsyncFakeRedis:
     def __init__(self):
         self.data = {}
+        self.ttl = {}
 
     async def sadd(self, key: str, *values: str):
         if key not in self.data:
@@ -80,15 +81,21 @@ class AsyncFakeRedis:
     async def srem(self, key: str, *values: str):
         if key in self.data:
             self.data[key].difference_update(values)
-        # Redis does not allow empty sets
-        if not self.data[key]:
-            del self.data[key]
+            # Redis does not allow empty sets
+            if not self.data[key]:
+                del self.data[key]
 
     async def smembers(self, key: str):
         return self.data.get(key, set())
 
     async def scard(self, key: str):
         return len(self.data.get(key, set()))
+
+    async def expire(self, key: str, seconds: int):
+        if key in self.data:
+            self.ttl[key] = seconds
+            return True
+        return False
 
     async def sismember(self, key: str, value: str):
         return value in self.data.get(key, set())
@@ -138,6 +145,14 @@ def get_mocked_data_ops() -> Tuple[DataOpsManager, AsyncFakeRedis, Mock]:
         return do_manager, redis_client_mock, storage_mock
 
 
+def get_mocked_store(metadata_ttl_seconds: int = 0) -> Tuple[RedisCacheMetadataStore, AsyncFakeRedis]:
+    with patch("vibe_agent.cache_metadata_store.retrieve_dapr_secret"):
+        redis_client_mock = AsyncFakeRedis()
+        metadata_store = RedisCacheMetadataStore(metadata_ttl_seconds=metadata_ttl_seconds)
+        metadata_store._get_redis_client = AsyncMock(return_value=redis_client_mock)
+        return metadata_store, redis_client_mock
+
+
 def assert_op_in_fake_redis(redis_client: AsyncFakeRedis, run_id: str, fake_op: FakeOpRunResult):
     run_ops_key = RedisCacheMetadataStore._run_ops_key_format.format(run_id=run_id)
     op_runs_key = RedisCacheMetadataStore._op_runs_key_format.format(
@@ -176,6 +191,59 @@ async def test_store_references_simple(op_1_run: FakeOpRunResult):
     await do_manager.add_references("fake-run", op_1_run.get_op_run_id(), op_1_run.get_output())
     assert len(redis_client_mock.data) == 3 + len(op_1_run.asset_ids)
     assert_op_in_fake_redis(redis_client_mock, "fake-run", op_1_run)
+
+
+@pytest.mark.anyio
+async def test_store_references_sets_ttl(op_1_run: FakeOpRunResult):
+    metadata_store, redis_client_mock = get_mocked_store(metadata_ttl_seconds=123)
+    await metadata_store.store_references("fake-run", op_1_run.get_op_run_id(), op_1_run.asset_ids)
+
+    expected_keys = {
+        RedisCacheMetadataStore._run_ops_key_format.format(run_id="fake-run"),
+        RedisCacheMetadataStore._op_runs_key_format.format(
+            op_name=op_1_run.cache_info.name, op_hash=op_1_run.cache_info.hash
+        ),
+        RedisCacheMetadataStore._op_assets_key_format.format(
+            op_name=op_1_run.cache_info.name, op_hash=op_1_run.cache_info.hash
+        ),
+        *{
+            RedisCacheMetadataStore._asset_ops_key_format.format(asset_id=asset_id)
+            for asset_id in op_1_run.asset_ids
+        },
+    }
+    assert redis_client_mock.ttl == {key: 123 for key in expected_keys}
+
+
+@pytest.mark.anyio
+@patch("vibe_agent.cache_metadata_store.Redis")
+@patch("vibe_agent.cache_metadata_store.retrieve_dapr_secret")
+async def test_redis_client_uses_configured_connection(
+    secret_mock: Mock,
+    redis_mock: Mock,
+):
+    redis_client_mock = AsyncMock()
+    redis_client_mock.ping.return_value = True
+    redis_mock.return_value = redis_client_mock
+
+    metadata_store = RedisCacheMetadataStore(
+        host="redis.example.com",
+        port=6380,
+        db=2,
+        username="redis-user",
+        password="redis-password",
+        ssl=True,
+    )
+    await metadata_store._get_redis_client()
+
+    secret_mock.assert_not_called()
+    redis_mock.assert_called_once()
+    redis_kwargs = redis_mock.call_args.kwargs
+    assert redis_kwargs["host"] == "redis.example.com"
+    assert redis_kwargs["port"] == 6380
+    assert redis_kwargs["db"] == 2
+    assert redis_kwargs["username"] == "redis-user"
+    assert redis_kwargs["password"] == "redis-password"
+    assert redis_kwargs["ssl"] is True
 
 
 @pytest.mark.anyio

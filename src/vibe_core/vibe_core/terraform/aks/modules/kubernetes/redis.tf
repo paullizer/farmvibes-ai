@@ -23,6 +23,31 @@ resource "helm_release" "redis" {
     value = "0"
   }
 
+  set {
+    name  = "master.resources.requests.memory"
+    value = var.redis_master_memory_request
+  }
+
+  set {
+    name  = "master.resources.limits.memory"
+    value = var.redis_master_memory_limit
+  }
+
+  set {
+    name  = "master.resources.requests.cpu"
+    value = var.redis_master_cpu_request
+  }
+
+  set {
+    name  = "master.resources.limits.cpu"
+    value = var.redis_master_cpu_limit
+  }
+
+  set {
+    name  = "master.persistence.size"
+    value = var.redis_master_persistence_size
+  }
+
   depends_on = [data.kubernetes_namespace.kubernetesnamespace]
 }
 

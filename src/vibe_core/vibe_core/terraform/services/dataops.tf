@@ -3,6 +3,7 @@
 
 locals {
   service_name = "terravibes-data-ops"
+  redis_host   = var.redis_host != "" ? var.redis_host : "redis-master.${var.namespace}.svc.cluster.local"
   data_ops_common_args = concat(
     [
       "-Xfrozen_modules=on",
@@ -148,6 +149,30 @@ resource "kubernetes_deployment" "dataops" {
           env {
             name  = "STAC_COSMOS_CONNECTION_KEY_SECRET"
             value = "stac-cosmos-write-key"
+          }
+          env {
+            name  = "FARMVIBES_REDIS_HOST"
+            value = local.redis_host
+          }
+          env {
+            name  = "FARMVIBES_REDIS_PORT"
+            value = var.redis_port
+          }
+          env {
+            name  = "FARMVIBES_REDIS_DB"
+            value = var.redis_db
+          }
+          env {
+            name  = "FARMVIBES_REDIS_USERNAME"
+            value = var.redis_username
+          }
+          env {
+            name  = "FARMVIBES_REDIS_SSL"
+            value = var.redis_ssl
+          }
+          env {
+            name  = "FARMVIBES_REDIS_METADATA_TTL_SECONDS"
+            value = var.redis_metadata_ttl_seconds
           }
           dynamic "volume_mount" {
             for_each = var.local_deployment ? [1] : []

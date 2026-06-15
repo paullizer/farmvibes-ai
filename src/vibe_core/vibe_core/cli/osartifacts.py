@@ -12,12 +12,12 @@ import tarfile
 import tempfile
 import zipfile
 from abc import ABC, abstractmethod
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from enum import Enum
+from importlib import resources as importlib_resources
 from typing import Dict, List, NamedTuple, Optional
 
-import pkg_resources
 import requests
 
 from .helper import execute_cmd
@@ -122,6 +122,8 @@ class OSArtifacts:
     def __init__(self):
         self._local_terraform_path = ""
         self._aks_terraform_path = ""
+        self._terraform_base_path = ""
+        self._resource_contexts = ExitStack()
 
     def check_dependencies(self, type: InstallType = InstallType.ALL) -> None:
         for dependency in self.REQUIRED_TOOLS.values():
@@ -366,10 +368,18 @@ class OSArtifacts:
 
     @property
     def terraform_base(self) -> str:
-        terraform_dir = os.path.abspath(
-            pkg_resources.resource_filename(__name__, os.path.join("..", "terraform"))
-        )
-        return terraform_dir
+        if not self._terraform_base_path:
+            if hasattr(importlib_resources, "files"):
+                terraform_resource = importlib_resources.files("vibe_core") / "terraform"
+                terraform_dir = self._resource_contexts.enter_context(
+                    importlib_resources.as_file(terraform_resource)
+                )
+            else:
+                import vibe_core
+
+                terraform_dir = pathlib.Path(vibe_core.__file__).resolve().parent / "terraform"
+            self._terraform_base_path = os.path.abspath(terraform_dir)
+        return self._terraform_base_path
 
     def _resolve_terraform_directory(self, directory: str) -> str:
         if not os.access(directory, os.W_OK) or "site-packages" in directory:

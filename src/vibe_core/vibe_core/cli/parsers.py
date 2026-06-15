@@ -36,6 +36,10 @@ AZURERM_ENVIRONMENTS = [
     "german",
     "china",
 ]
+INGRESS_CONTROLLER_TYPES = [
+    "self_managed_nginx",
+    "application_routing",
+]
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CORE_DIR = os.path.dirname(HERE)
@@ -329,6 +333,37 @@ class RemoteCliParser(CliParser):
                 type=int,
                 default=3,
                 help="Number of worker replicas to use",
+            )
+            command.add_argument(
+                "--node-os-sku",
+                required=False,
+                default="Ubuntu",
+                help="AKS node OS SKU to use for new or updated node pools",
+            )
+            command.add_argument(
+                "--ingress-controller-type",
+                required=False,
+                choices=INGRESS_CONTROLLER_TYPES,
+                default=INGRESS_CONTROLLER_TYPES[0],
+                help="Ingress controller to use for AKS deployments",
+            )
+            command.add_argument(
+                "--ingress-class-name",
+                required=False,
+                default="",
+                help="Override the Kubernetes IngressClass name for AKS deployments",
+            )
+            command.add_argument(
+                "--application-routing-dns-zone-ids",
+                required=False,
+                default="",
+                help="Comma-separated Azure DNS zone resource IDs for AKS Application Routing",
+            )
+            command.add_argument(
+                "--monitor-action-group-ids",
+                required=False,
+                default="",
+                help="Comma-separated Azure Monitor Action Group resource IDs for telemetry alerts",
             )
 
             if os.path.exists(REMOTE_OTEL_PATH):
