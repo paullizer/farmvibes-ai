@@ -14,6 +14,7 @@ For a first contact with FarmVibes.AI and its capabilities, please refer to:
 
 - [Quickstart guide](./docfiles/markdown/QUICKSTART.md) for information on how to install and get started using the platform locally.
 - [AKS setup guide](./docfiles/markdown/AKS.md), if you prefer to setup a remote Azure Kubernetes Service (AKS) cluster to run FarmVibes.AI.
+- [AKS deployment change list](./docfiles/markdown/AKS_DEPLOYMENT_CHANGES.md) for the deployment-related updates behind the current remote AKS instructions.
 - [AKS operational readiness guide](./docfiles/markdown/AKS_OPERATIONAL_READINESS.md) for telemetry, alerts, and common recovery steps.
 - [Terraform provider matrix](./docfiles/markdown/TERRAFORM_PROVIDERS.md) for supported provider pins and upgrade sequencing.
 - [VM setup guide](./docfiles/markdown/VM-SETUP.md), if you prefer to setup a dedicated Azure Virtual Machine to run FarmVibes.AI.
@@ -34,6 +35,7 @@ Additionally, the following user guides and links may be helpful:
 
    docfiles/markdown/QUICKSTART
    docfiles/markdown/AKS
+   docfiles/markdown/AKS_DEPLOYMENT_CHANGES
    docfiles/markdown/AKS_OPERATIONAL_READINESS
    docfiles/markdown/TERRAFORM_PROVIDERS
    docfiles/markdown/CLIENT

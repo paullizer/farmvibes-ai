@@ -87,6 +87,108 @@ Please refer to the the [Quickstart guide](https://microsoft.github.io/farmvibes
 you prefer to setup a dedicated Azure Virtual Machine to run FarmVibes.AI, you can find detailed
 instructions [in the VM setup documentation](https://microsoft.github.io/farmvibes-ai/docfiles/markdown/VM-SETUP.html).
 
+## Remote AKS Deployment
+
+FarmVibes.AI can also run on Azure Kubernetes Service (AKS). Use the
+[`farmvibes-ai remote`](./docs/source/docfiles/markdown/AKS.md) commands to create or update the
+remote cluster, and use a dedicated, empty resource group for each deployment. The destroy workflow
+removes all resources in the target resource group. See the
+[AKS deployment change list](./docs/source/docfiles/markdown/AKS_DEPLOYMENT_CHANGES.md) for the
+deployment-related updates behind these instructions.
+
+Install the CLI from this repository:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install ./src/vibe_core
+```
+
+On Windows PowerShell, activate the environment with:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Sign in to Azure and select the correct subscription. For Azure Government, switch clouds before
+logging in:
+
+```powershell
+az cloud set --name AzureUSGovernment
+az login --tenant <tenant-id> --use-device-code
+az account set --subscription <subscription-id>
+```
+
+Create a remote AKS deployment:
+
+```bash
+farmvibes-ai remote setup \
+	--auto-confirm \
+	--resource-group <dedicated-resource-group> \
+	--cluster-name <cluster-name> \
+	--region <azure-region> \
+	--cert-email <email-for-tls-certificate> \
+	--environment public \
+	--ingress-controller-type application_routing \
+	--enable-telemetry
+```
+
+For Azure Government, use a government region and environment:
+
+```bash
+farmvibes-ai remote setup \
+	--auto-confirm \
+	--resource-group <dedicated-resource-group> \
+	--cluster-name <cluster-name> \
+	--region usgovvirginia \
+	--cert-email <email-for-tls-certificate> \
+	--environment usgovernment \
+	--ingress-controller-type application_routing \
+	--enable-telemetry
+```
+
+If setup is interrupted after the resource group or AKS cluster is created, resume with
+`farmvibes-ai remote update` using the same values. Do not rerun `remote setup` against a partially
+deployed cluster. Valid environment values are `public`, `usgovernment`, `german`, and `china`.
+
+```bash
+farmvibes-ai remote update \
+	--auto-confirm \
+	--resource-group <dedicated-resource-group> \
+	--cluster-name <cluster-name> \
+	--region <azure-region> \
+	--cert-email <email-for-tls-certificate> \
+	--environment <azure-environment> \
+	--ingress-controller-type application_routing \
+	--enable-telemetry
+```
+
+After deployment, get the service URL and validate the API:
+
+```bash
+farmvibes-ai remote status \
+	--resource-group <dedicated-resource-group> \
+	--cluster-name <cluster-name> \
+	--environment <azure-environment>
+```
+
+The remote service exposes a REST API and Swagger documentation, not a separate web frontend. The
+root path may return `404`; use `/docs`, `/v0/docs`, `/v1/docs`, `/v0/workflows`, or `/v1/workflows`
+on the reported URL. The Python client can target the remote cluster after setup writes the local
+configuration:
+
+```python
+from vibe_core.client import get_default_vibe_client
+
+client = get_default_vibe_client("remote")
+client.list_workflows()
+```
+
+By default, the remote REST API is exposed on a public HTTPS endpoint and does not enforce
+application-layer authentication. Treat this as suitable for controlled test deployments only unless
+you add access controls, restrict network reachability, or place the API behind an authenticated
+gateway.
+
 ## Notebook Examples
 
 In the folder `notebooks` there are several examples to serve as starting points and demonstrating
